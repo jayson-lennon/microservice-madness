@@ -1,5 +1,8 @@
 [workspace]
 members = [
-    "usvc",
-    "poc"
+    "broker",
+    "directory",
+    "poc_client",
+    "poc_service",
+    "usvc"
 ]
