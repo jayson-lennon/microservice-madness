@@ -1,3 +1,67 @@
+#[macro_use]
+extern crate log;
+
+pub mod broker;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Error, Debug, Serialize, Deserialize)]
+pub enum ServiceError {
+    #[error("communication error {0}")]
+    Comms(String),
+
+    #[error("serialization error {0}")]
+    Serialization(String),
+}
+
+impl From<reqwest::Error> for ServiceError {
+    fn from(err: reqwest::Error) -> Self {
+        ServiceError::Comms(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for ServiceError {
+    fn from(err: serde_json::Error) -> Self {
+        ServiceError::Serialization(err.to_string())
+    }
+}
+
+pub trait Microservice {
+    fn is_stateful() -> bool;
+    fn init() -> Self;
+}
+
+#[derive(Debug, Clone)]
+pub struct ServiceClient {
+    inner: reqwest::Client,
+}
+
+impl ServiceClient {
+    pub async fn request<T: Serialize>(
+        &self,
+        params: &T,
+        url: &str,
+    ) -> Result<String, ServiceError> {
+        Ok(self
+            .inner
+            .post(url)
+            .json(params)
+            .send()
+            .await?
+            .text()
+            .await?)
+    }
+}
+
+impl Default for ServiceClient {
+    fn default() -> Self {
+        Self {
+            inner: reqwest::Client::new(),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! make_service {
     ($name:expr, $params:ty) => {
@@ -11,6 +75,7 @@ macro_rules! make_service {
         use tide::Request;
 
         async fn recv_request(mut req: Request<()>) -> tide::Result<serde_json::Value> {
+            // Generate a params type from the function signature
             let params: $params = req.body_json().await?;
             let result = action(params);
 
@@ -38,7 +103,7 @@ macro_rules! make_service {
                 let mut app = tide::new();
                 app.at("/").post(recv_request);
 
-                let bind = format!("127.0.0.1:{}", port);
+                let bind = format!("http://127.0.0.1:{}", port);
 
                 let params = broker::params::AddService {
                     name: $name.to_owned(),
