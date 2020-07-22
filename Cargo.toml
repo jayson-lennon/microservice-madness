@@ -6,5 +6,5 @@ members = [
     "poc_client",
     "poc_service",
     "libsvc",
-    "usvc"
+    "libsvc_codegen"
 ]

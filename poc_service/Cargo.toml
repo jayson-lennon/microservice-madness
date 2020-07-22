@@ -14,7 +14,6 @@ log = "^0.4"
 tide = "^0.12"
 env_logger = "^0.7"
 dotenv = "^0.15"
-usvc = { path = "../usvc", version = "*" }
 reqwest = { version = "^0.10", features = ["json"] }
 directory = { path = "../directory", version = "*" }
 tokio = { version = "^0.2", features = ["macros", "rt-core"] }
