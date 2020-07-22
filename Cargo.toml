@@ -4,5 +4,6 @@ members = [
     "directory",
     "poc_client",
     "poc_service",
+    "libsvc",
     "usvc"
 ]

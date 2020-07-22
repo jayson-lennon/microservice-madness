@@ -15,6 +15,8 @@ tide = "^0.12"
 env_logger = "^0.7"
 dotenv = "^0.15"
 usvc = { path = "../usvc", version = "*" }
-surf = "^1.0"
+reqwest = { version = "^0.10", features = ["json"] }
 directory = { path = "../directory", version = "*" }
 tokio = { version = "^0.2", features = ["macros", "rt-core"] }
+libsvc = { path = "../libsvc", version = "*" }
+rand = "^0.7"
