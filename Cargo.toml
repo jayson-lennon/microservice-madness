@@ -2,6 +2,7 @@
 members = [
     "broker",
     "directory",
+    "fizzbuzz",
     "poc_client",
     "poc_service",
     "libsvc",

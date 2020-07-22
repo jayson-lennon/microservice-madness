@@ -1,0 +1,25 @@
+[package]
+name = "fizzbuzz"
+version = "0.1.0"
+authors = ["Jayson Lennon <jayson@jaysonlennon.dev>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "fizzbuzz"
+path = "src/fizzbuzz.rs"
+
+[dependencies]
+serde_json = "^1.0"
+serde = "^1.0"
+bincode = "^1.3"
+log = "^0.4"
+tide = "^0.12"
+env_logger = "^0.7"
+dotenv = "^0.15"
+usvc = { path = "../usvc", version = "*" }
+reqwest = { version = "^0.10", features = ["json"] }
+tokio = { version = "^0.2", features = ["macros", "rt-core"] }
+libsvc = { path = "../libsvc", version = "*" }
+rand = "^0.7"
