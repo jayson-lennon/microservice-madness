@@ -30,6 +30,7 @@ impl From<serde_json::Error> for ServiceError {
 pub trait Microservice {
     fn is_stateful() -> bool;
     fn init() -> Self;
+    fn name() -> &'static str;
 }
 
 #[derive(Debug, Clone)]

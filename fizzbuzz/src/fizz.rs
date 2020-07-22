@@ -22,6 +22,10 @@ impl Microservice for Fizz {
         println!("init ok");
         Fizz {}
     }
+
+    fn name() -> &'static str {
+        "fizz"
+    }
 }
 
 // Struct generated:
