@@ -1,7 +1,10 @@
 use libsvc::{broker, Microservice, ServiceClient, ServiceError};
-use libsvc_codegen::microservice;
+use libsvc_codegen::{remote, Microservice};
 use serde::{Deserialize, Serialize};
 
+const SERVICE_NAME: &'static str = "buzz";
+
+#[derive(Microservice)]
 pub struct Buzz;
 
 impl Microservice for Buzz {
@@ -15,7 +18,7 @@ impl Microservice for Buzz {
     }
 
     fn name() -> &'static str {
-        "buzz"
+        SERVICE_NAME
     }
 }
 
@@ -36,40 +39,13 @@ impl Buzz {
     // A proc macro attribute on this function will generate:
     //   * An additional function for use by clients to call the service.
     //   * A struct used for serialization
-    #[microservice]
-    async fn action(sample: i32, ok: String, usvc_client: &ServiceClient) -> Result<String, bool> {
+    #[remote]
+    async fn action(
+        sample: i32,
+        ok: String,
+        a_vec: Vec<i32>,
+        usvc_client: &ServiceClient,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         Ok("hello".to_string())
     }
-
-    // Function generated: used by clients to make requests to this microservice.
-    //    pub async fn _action_gen_2(
-    //        sample: i32,
-    //        ok: String,
-    //        usvc_client: &ServiceClient,
-    //    ) -> Result<Sample, ServiceError> {
-    //        let params = _BuzzAction {
-    //            _sample: sample,
-    //            _ok: ok,
-    //        };
-    //
-    //        let response = usvc_client.request(&params, "nowhere").await?;
-    //        let response: Sample = serde_json::from_str(&response)?;
-    //
-    //        Err(ServiceError::Comms("".into()))
-    //    }
-    //
-    //    // Function generated: used by clients to make requests to this microservice.
-    //    pub async fn _action_gen_3(
-    //        input: String,
-    //        usvc_client: &ServiceClient,
-    //    ) -> Result<_SampleResponse, ServiceError> {
-    //        let endpoint = broker::get_endpoint("poc_service", usvc_client).await?;
-    //        let params = _SampleRequest { input: input };
-    //
-    //        let response = usvc_client.request(&params, &endpoint.address).await?;
-    //        let response: _SampleResponse = serde_json::from_str(&response)?;
-    //        Ok(response)
-    //
-    //        //Err(ServiceError::Comms("".into()))
-    //    }
 }
