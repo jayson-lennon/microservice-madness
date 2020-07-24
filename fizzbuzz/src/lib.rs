@@ -2,4 +2,6 @@ pub mod fizz;
 pub use fizz::Fizz;
 
 pub mod buzz;
-pub use buzz::buzz;
+
+pub mod logger;
+pub mod math;

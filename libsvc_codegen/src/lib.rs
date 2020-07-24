@@ -75,20 +75,22 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         path
     };
 
-    let target_path = PathBuf::from(&format!(
-        "fizzbuzz/src/bin/svc-{}",
-        src_path.as_path().file_name().unwrap().to_str().unwrap()
-    ));
-
     println!("crate name = {}", crate_name);
     println!("module path = {}", module_path);
-    println!("src path={:?}", src_path);
-    println!("tgt path={:?}", target_path);
     let function = parse_macro_input!(input as ItemFn);
 
     let signature = function.clone().sig;
 
     let fn_name = signature.clone().ident.to_string();
+
+    let target_path = PathBuf::from(&format!(
+        "fizzbuzz/src/bin/svc-{}-{}.rs",
+        src_path.as_path().file_stem().unwrap().to_str().unwrap(),
+        fn_name
+    ));
+
+    println!("src path={:?}", src_path);
+    println!("tgt path={:?}", target_path);
 
     let return_type = {
         match signature.output {
@@ -144,9 +146,11 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         panic!("missing ServiceClient reference");
     }
 
+    let service_client_var_name = format_ident!("{}", service_client_var_name);
+
     let server_function = {
         let mut function = function.clone();
-        function.sig.ident = format_ident!("{}_local", fn_name);
+        function.sig.ident = format_ident!("{}_impl", fn_name);
         function
     };
 
@@ -187,10 +191,10 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
         pub #client_fn_sig {
             #target_struct
-            let endpoint = broker::get_endpoint(#fn_name, usvc_client).await?;
+            let endpoint = broker::get_endpoint(#fn_name, #service_client_var_name).await?;
             let params = _Params { #(#fn_idents),* };
 
-            let response = usvc_client.request(&params, &endpoint.address).await?;
+            let response = #service_client_var_name.request(&params, &endpoint.address).await?;
             let response: #return_type = serde_json::from_str(&response)?;
             Ok(response)
         }

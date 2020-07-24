@@ -1,7 +1,7 @@
 #[macro_use] extern crate log ; use dotenv :: dotenv ; use libsvc ::
 { broker, ServiceClient, ServiceError } ; use rand :: Rng ; use serde ::
 { Deserialize, Serialize } ; use tide :: { Request, StatusCode } ; use
-fizzbuzz :: buzz :: buzz_local ; #[derive(Clone)] pub struct State
+fizzbuzz :: buzz :: buzz_impl ; #[derive(Clone)] pub struct State
 { client : ServiceClient, } #[derive(Serialize, Deserialize)] struct _Params
 { _sample : i32, _ok : String, _a_vec : Vec < i32 > } async fn
 recv_request(mut req : Request < State >) -> tide :: Result < serde_json ::
@@ -9,7 +9,7 @@ Value >
 {
     let client = & req . state() . client . clone() ; let params : _Params =
     req . body_json() . await ? ; let result =
-    buzz_local(params . _sample, params . _ok, params . _a_vec, & client) .
+    buzz_impl(params . _sample, params . _ok, params . _a_vec, & client) .
     await .
     map_err(| e | tide :: Error ::
             from_str(StatusCode :: InternalServerError, e . to_string())) ? ;
