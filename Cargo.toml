@@ -1,10 +1,7 @@
 [workspace]
 members = [
     "broker",
-    "directory",
     "fizzbuzz",
-    "poc_client",
-    "poc_service",
     "libsvc",
     "libsvc_codegen"
 ]

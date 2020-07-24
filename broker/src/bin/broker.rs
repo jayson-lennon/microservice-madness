@@ -2,8 +2,8 @@
 extern crate log;
 
 use dashmap::DashMap;
-use directory::broker::{params, Service, Services};
 use dotenv::dotenv;
+use libsvc::broker::{params, Service, Services};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tide::Request;
