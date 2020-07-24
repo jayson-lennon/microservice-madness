@@ -13,6 +13,9 @@ pub enum ServiceError {
 
     #[error("serialization error {0}")]
     Serialization(String),
+
+    #[error("server error {0}")]
+    ServerError(String),
 }
 
 impl From<reqwest::Error> for ServiceError {
@@ -24,6 +27,12 @@ impl From<reqwest::Error> for ServiceError {
 impl From<serde_json::Error> for ServiceError {
     fn from(err: serde_json::Error) -> Self {
         ServiceError::Serialization(err.to_string())
+    }
+}
+
+impl From<tide::Error> for ServiceError {
+    fn from(err: tide::Error) -> Self {
+        ServiceError::ServerError(err.to_string())
     }
 }
 

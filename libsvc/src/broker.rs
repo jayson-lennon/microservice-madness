@@ -20,6 +20,23 @@ pub async fn get_endpoint(
     Ok(response)
 }
 
+pub async fn add_endpoint(
+    name: &str,
+    address: &str,
+    service_client: &ServiceClient,
+) -> Result<(), ServiceError> {
+    trace!("in add endpoint");
+    let params = params::AddService {
+        name: name.to_owned(),
+        address: address.to_owned(),
+    };
+    trace!("params = {:#?}", params);
+    let _ = service_client
+        .request(&params, "http://localhost:8080/add")
+        .await?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Service {
     pub name: String,

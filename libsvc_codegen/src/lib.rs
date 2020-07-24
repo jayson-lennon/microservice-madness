@@ -1,5 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use syn::{
     parse_macro_input, FnArg, Ident, ItemFn, ItemStruct, Pat, PatType, PathArguments, ReturnType,
     Type, TypePath,
@@ -46,9 +49,46 @@ fn get_arg_name(t: &PatType) -> String {
 
 #[proc_macro_attribute]
 pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let attr_str = attr
+        .clone()
+        .into_iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<String>>()
+        .join("");
+
+    let (src_path, module_path) = {
+        let components: Vec<_> = attr_str.split(";").collect();
+        (components[0], components[1])
+    };
+
+    let (crate_name, module_path) = {
+        let components: Vec<_> = module_path.split("::").collect();
+        (components[0], components[1])
+    };
+
+    let crate_name = format_ident!("{}", crate_name);
+    let module_path = format_ident!("{}", module_path);
+
+    let src_path = {
+        let mut path = PathBuf::from(src_path);
+        path.set_extension("rs");
+        path
+    };
+
+    let target_path = PathBuf::from(&format!(
+        "fizzbuzz/src/bin/svc-{}",
+        src_path.as_path().file_name().unwrap().to_str().unwrap()
+    ));
+
+    println!("crate name = {}", crate_name);
+    println!("module path = {}", module_path);
+    println!("src path={:?}", src_path);
+    println!("tgt path={:?}", target_path);
     let function = parse_macro_input!(input as ItemFn);
 
     let signature = function.clone().sig;
+
+    let fn_name = signature.clone().ident.to_string();
 
     let return_type = {
         match signature.output {
@@ -106,7 +146,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let server_function = {
         let mut function = function.clone();
-        function.sig.ident = Ident::new("action_local", signature.ident.span());
+        function.sig.ident = format_ident!("{}_local", fn_name);
         function
     };
 
@@ -135,15 +175,19 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let client_fn_sig = function.clone().sig;
 
-    let tokens = quote! {
+    let target_struct = quote! {
+        #[derive(Serialize, Deserialize)]
+        struct _Params {
+            #(#struct_members),*
+        }
+    };
+
+    let client_tokens = quote! {
         #server_function
 
-        #client_fn_sig {
-            #[derive(Serialize)]
-            struct _Params {
-                #(#struct_members),*
-            }
-            let endpoint = broker::get_endpoint(SERVICE_NAME, usvc_client).await?;
+        pub #client_fn_sig {
+            #target_struct
+            let endpoint = broker::get_endpoint(#fn_name, usvc_client).await?;
             let params = _Params { #(#fn_idents),* };
 
             let response = usvc_client.request(&params, &endpoint.address).await?;
@@ -151,15 +195,104 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
             Ok(response)
         }
     };
-    println!("token stream = {:#?}", tokens.to_string());
 
-    TokenStream::from(tokens)
+    // Write service file
+    {
+        let server_fn_name = server_function.clone().sig.ident;
+        let fn_name_as_str = fn_name.to_string();
+        let fn_args = fn_args
+            .iter()
+            .filter_map(|arg| match arg.1.clone() {
+                ArgType::Owned(ty) => {
+                    let struct_ident = format_ident!("_{}", arg.0);
+                    Some(quote! { params.#struct_ident })
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let service_src = quote! {
+            #[macro_use]
+            extern crate log;
+            use dotenv::dotenv;
+            use libsvc::{broker, ServiceClient, ServiceError};
+            use rand::Rng;
+            use serde::{Deserialize, Serialize};
+            use tide::{Request, StatusCode};
+
+            use #crate_name::#module_path::#server_fn_name;
+
+            #[derive(Clone)]
+            pub struct State {
+                client: ServiceClient,
+            }
+
+            #target_struct
+
+            async fn recv_request(mut req: Request<State>) -> tide::Result<serde_json::Value> {
+                let client = &req.state().client.clone();
+                let params: _Params = req.body_json().await?;
+                let result = #server_fn_name(#(#fn_args),* , &client)
+                    .await
+                    .map_err(|e| tide::Error::from_str(StatusCode::InternalServerError, e.to_string()))?;
+
+                info!("action taken!");
+
+                trace!("responding with {:#?}", result);
+
+                Ok(serde_json::to_value(result).expect("failed to convert to JSON value"))
+            }
+
+            #[tokio::main]
+            async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+                dotenv().ok();
+
+                env_logger::init();
+
+                info!("b00ting!");
+
+                let mut rng = rand::thread_rng();
+
+                loop {
+                    let port: u32 = rng.gen_range(30000, 50000);
+                    let bind = format!("http://127.0.0.1:{}", port);
+                    let service_client = ServiceClient::default();
+                    broker::add_endpoint(#fn_name_as_str, &bind, &service_client).await?;
+
+                    let mut app = tide::Server::with_state(State {
+                        client: service_client,
+                    });
+                    app.at("/").post(recv_request);
+                    if app.listen(bind).await.is_err() {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+        };
+
+        let service_src_str = service_src.to_string();
+        let mut target_file =
+            File::create(&target_path).expect(&format!("failed to create file: {:?}", target_path));
+        target_file
+            .write_all(service_src_str.as_bytes())
+            .expect("failed to write content to file");
+        println!("{:?}", service_src_str);
+    }
+
+    TokenStream::from(client_tokens)
 }
 
-#[proc_macro_derive(Microservice)]
-pub fn microservice(input: TokenStream) -> TokenStream {
-    let tokens = parse_macro_input!(input as ItemStruct);
-    let tokens = quote!( { #tokens });
-    println!("{:?}", tokens.to_string());
-    TokenStream::from(tokens)
+fn read_src_file(src_path: &PathBuf) -> String {
+    let mut src_file =
+        File::open(&src_path).expect(&format!("failed to open source file: {:?}", src_path));
+
+    let mut src_content = String::new();
+
+    src_file
+        .read_to_string(&mut src_content)
+        .expect("failed to read source file to string");
+
+    src_content
 }
