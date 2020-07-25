@@ -2,7 +2,7 @@ use libsvc::{broker, ServiceClient};
 use libsvc_codegen::remote;
 use serde::{Deserialize, Serialize};
 
-#[remote(src/math;fizzbuzz::math)]
+//#[remote(src/math;fizzbuzz::math)]
 pub async fn add(
     lhs: i32,
     rhs: i32,

@@ -12,7 +12,9 @@ pub async fn get_endpoint(
         name: name.to_owned(),
     };
     trace!("params = {:#?}", params);
-    let response = service_client.request(&params, "http://localhost:8080/find")?;
+    let response = service_client
+        .request(&params, "http://localhost:8080/find")
+        .await?;
     trace!("response = {:#?}", response);
     let response: Service = serde_json::from_str(&response)?;
     Ok(response)
@@ -29,7 +31,9 @@ pub async fn add_endpoint(
         address: address.to_owned(),
     };
     trace!("params = {:#?}", params);
-    let _ = service_client.request(&params, "http://localhost:8080/add")?;
+    let _ = service_client
+        .request(&params, "http://localhost:8080/add")
+        .await?;
     Ok(())
 }
 

@@ -2,7 +2,7 @@ use libsvc::{broker, ServiceClient};
 use libsvc_codegen::remote;
 use serde::{Deserialize, Serialize};
 
-#[remote(src/buzz;fizzbuzz::buzz)]
+//#[remote(src/buzz;fizzbuzz::buzz)]
 pub async fn buzz(
     sample: i32,
     ok: String,

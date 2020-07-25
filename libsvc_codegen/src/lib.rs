@@ -191,10 +191,10 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
         pub #client_fn_sig {
             #target_struct
-            let endpoint = broker::get_endpoint(#fn_name, #service_client_var_name)?;
+            let endpoint = broker::get_endpoint(#fn_name, #service_client_var_name).await?;
             let params = _Params { #(#fn_idents),* };
 
-            let response = #service_client_var_name.request(&params, &endpoint.address)?;
+            let response = #service_client_var_name.request(&params, &endpoint.address).await?;
             let response: #return_type = serde_json::from_str(&response)?;
             Ok(response)
         }
