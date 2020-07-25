@@ -14,8 +14,8 @@ run-services: build
     trap "kill 0" EXIT
 
     just run-service broker &
+    echo Waiting for broker to start up...
     sleep 1
-    just run-service svc-logger &
 
     for svc in `ls fizzbuzz/src/bin | rg svc- | sed 's/\.rs//g'`;
         do just run-service $svc &

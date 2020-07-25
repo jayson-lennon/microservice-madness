@@ -1,5 +1,5 @@
-pub mod fizz;
-pub use fizz::Fizz;
+#[macro_use]
+extern crate log;
 
 pub mod buzz;
 

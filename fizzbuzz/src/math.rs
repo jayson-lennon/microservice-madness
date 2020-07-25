@@ -8,7 +8,7 @@ pub async fn add(
     rhs: i32,
     svc: &ServiceClient,
 ) -> Result<i32, Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let _ = crate::logger::usvc_log("add".to_string(), format!("Adding {} + {}", lhs, rhs), svc)
-        .await?;
+    trace!("request received");
+    //let _ = crate::logger::usvc_log("add".to_string(), format!("Adding {} + {}", lhs, rhs), svc).await;
     Ok(lhs + rhs)
 }

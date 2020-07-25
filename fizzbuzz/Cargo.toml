@@ -18,9 +18,11 @@ log = "^0.4"
 env_logger = "^0.7"
 tide = "^0.12"
 dotenv = "^0.15"
-reqwest = { version = "^0.10", features = ["json"] }
-tokio = { version = "^0.2", features = ["macros", "rt-core"] }
+reqwest = { version = "^0.10", features = ["json", "blocking"] }
+tokio = { version = "^0.2", features = ["full"] }
 libsvc = { path = "../libsvc", version = "*" }
 libsvc_codegen = { path = "../libsvc_codegen", version = "*" }
 rand = "^0.7"
 anyhow = "^1.0"
+
+async-std = { version = "1.6.2", features = ["attributes"] }

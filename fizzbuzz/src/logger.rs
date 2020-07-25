@@ -8,6 +8,7 @@ pub async fn usvc_log(
     message: String,
     svc: &ServiceClient,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    println!("[{}]: {}", service_name, message);
+    trace!("request received");
+    info!("[{}]: {}", service_name, message);
     Ok(())
 }

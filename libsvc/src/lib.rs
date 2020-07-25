@@ -44,30 +44,34 @@ pub trait Microservice {
 
 #[derive(Debug, Clone)]
 pub struct ServiceClient {
-    inner: reqwest::Client,
+    inner: reqwest::blocking::Client,
 }
 
 impl ServiceClient {
-    pub async fn request<T: Serialize>(
-        &self,
-        params: &T,
-        url: &str,
-    ) -> Result<String, ServiceError> {
-        Ok(self
-            .inner
-            .post(url)
-            .json(params)
-            .send()
-            .await?
-            .text()
-            .await?)
+    //    pub async fn request<T: Serialize>(
+    //        &self,
+    //        params: &T,
+    //        url: &str,
+    //    ) -> Result<String, ServiceError> {
+    //        Ok(self
+    //            .inner
+    //            .post(url)
+    //            .json(params)
+    //            .send()
+    //            .await?
+    //            .text()
+    //            .await?)
+    //    }
+
+    pub fn request<T: Serialize>(&self, params: &T, url: &str) -> Result<String, ServiceError> {
+        Ok(self.inner.post(url).json(params).send()?.text()?)
     }
 }
 
 impl Default for ServiceClient {
     fn default() -> Self {
         Self {
-            inner: reqwest::Client::new(),
+            inner: reqwest::blocking::Client::new(),
         }
     }
 }
