@@ -48,11 +48,12 @@ pub struct ServiceClient {
 }
 
 impl ServiceClient {
-    pub async fn request<T: Serialize>(
+    pub async fn request<T: Serialize + std::fmt::Debug>(
         &self,
         params: &T,
         url: &str,
     ) -> Result<String, ServiceError> {
+        println!("service client url + params = {:?} -- {:#?}", url, params);
         Ok(self
             .inner
             .post(url)

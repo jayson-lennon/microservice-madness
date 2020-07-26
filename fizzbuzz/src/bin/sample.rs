@@ -1,13 +1,11 @@
 #[macro_use]
 extern crate log;
 use dotenv::dotenv;
-use futures::future::TryFutureExt;
-//use fizzbuzz::math::add_impl;
-use libsvc::{broker, ServiceClient, ServiceError};
+use libsvc::{broker, ServiceClient};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
-use warp::{Filter, Rejection, Reply};
+use warp::Filter;
 
 fn add_impl(lhs: i32, rhs: i32, svc: &ServiceClient) -> i32 {
     lhs + rhs
@@ -28,6 +26,17 @@ fn json_body() -> impl Filter<Extract = (_Params,), Error = warp::Rejection> + C
     // When accepting a body, we want a JSON body
     // (and to reject huge payloads)...
     warp::body::content_length_limit(1024 * 16).and(warp::body::json())
+}
+
+macro_rules! warp_try {
+    ($expr:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(err) => {
+                return Ok(err.into_response());
+            }
+        }
+    };
 }
 
 async fn process_request(params: _Params, state: State) -> Result<impl warp::Reply, Infallible> {

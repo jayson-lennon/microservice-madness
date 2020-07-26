@@ -4,8 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use syn::{
-    parse_macro_input, FnArg, Ident, ItemFn, ItemStruct, Pat, PatType, PathArguments, ReturnType,
-    Type, TypePath,
+    parse_macro_input, FnArg, ItemFn, Pat, PatType, PathArguments, ReturnType, Type, TypePath,
 };
 
 #[derive(Debug, Clone)]
@@ -75,8 +74,6 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         path
     };
 
-    println!("crate name = {}", crate_name);
-    println!("module path = {}", module_path);
     let function = parse_macro_input!(input as ItemFn);
 
     let signature = function.clone().sig;
@@ -88,9 +85,6 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         src_path.as_path().file_stem().unwrap().to_str().unwrap(),
         fn_name
     ));
-
-    println!("src path={:?}", src_path);
-    println!("tgt path={:?}", target_path);
 
     let return_type = {
         match signature.output {
@@ -122,7 +116,6 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut fn_args = vec![];
 
     for arg in signature.inputs.iter() {
-        println!("===========================");
         match arg {
             FnArg::Typed(t) => {
                 let arg_name = get_arg_name(t);
@@ -143,7 +136,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     if service_client_var_name == "" {
-        panic!("missing ServiceClient reference");
+        panic!("Missing ServiceClient reference");
     }
 
     let service_client_var_name = format_ident!("{}", service_client_var_name);
@@ -180,7 +173,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     let client_fn_sig = function.clone().sig;
 
     let target_struct = quote! {
-        #[derive(Serialize, Deserialize)]
+        #[derive(Serialize, Deserialize, Debug)]
         struct _Params {
             #(#struct_members),*
         }
@@ -191,7 +184,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
         pub #client_fn_sig {
             #target_struct
-            let endpoint = broker::get_endpoint(#fn_name, #service_client_var_name).await?;
+            let endpoint = libsvc::broker::get_endpoint(#fn_name, #service_client_var_name).await?;
             let params = _Params { #(#fn_idents),* };
 
             let response = #service_client_var_name.request(&params, &endpoint.address).await?;
@@ -221,7 +214,8 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
             use libsvc::{broker, ServiceClient, ServiceError};
             use rand::Rng;
             use serde::{Deserialize, Serialize};
-            use tide::{Request, StatusCode};
+            use std::convert::Infallible;
+            use warp::Filter;
 
             use #crate_name::#module_path::#server_fn_name;
 
@@ -232,18 +226,24 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
             #target_struct
 
-            async fn recv_request(mut req: Request<State>) -> tide::Result<serde_json::Value> {
-                let client = &req.state().client.clone();
-                let params: _Params = req.body_json().await?;
+            fn json_body() -> impl Filter<Extract = (_Params,), Error = warp::Rejection> + Clone {
+                warp::body::content_length_limit(1024 * 16).and(warp::body::json())
+            }
+
+            async fn process_request(params: _Params, state: State) -> Result<impl warp::Reply, Infallible> {
+                let client = state.client.clone();
+                debug!("params: {:#?}", params);
                 let result = #server_fn_name(#(#fn_args),* , &client)
-                    .await
-                    .map_err(|e| tide::Error::from_str(StatusCode::InternalServerError, e.to_string()))?;
+                    .await.unwrap();
+                debug!("action taken!");
+                debug!("responding with {:#?}", result);
+                Ok(warp::reply::json(&result))
+            }
 
-                info!("action taken!");
-
-                trace!("responding with {:#?}", result);
-
-                Ok(serde_json::to_value(result).expect("failed to convert to JSON value"))
+            fn with_state(
+                state: State,
+            ) -> impl Filter<Extract = (State,), Error = std::convert::Infallible> + Clone {
+                warp::any().map(move || state.clone())
             }
 
             #[tokio::main]
@@ -255,23 +255,23 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
                 info!("b00ting!");
 
                 let mut rng = rand::thread_rng();
+                let port: u16 = rng.gen_range(30000, 50000);
 
-                loop {
-                    let port: u32 = rng.gen_range(30000, 50000);
-                    let bind = format!("http://127.0.0.1:{}", port);
-                    let service_client = ServiceClient::default();
-                    broker::add_endpoint(#fn_name_as_str, &bind, &service_client).await?;
+                let service_client = ServiceClient::default();
 
-                    let mut app = tide::Server::with_state(State {
-                        client: service_client,
-                    });
-                    app.at("/").post(recv_request);
-                    if app.listen(bind).await.is_err() {
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
+                broker::add_endpoint(#fn_name_as_str, &format!("http://127.0.0.1:{}/", port), &service_client).await?;
+
+                let state = State {
+                    client: service_client,
+                };
+
+                let route = warp::any()
+                    .and(warp::post())
+                    .and(json_body())
+                    .and(with_state(state))
+                    .and_then(process_request);
+
+                warp::serve(route).run(([127, 0, 0, 1], port)).await;
                 Ok(())
             }
         };
