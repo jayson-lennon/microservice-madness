@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate log;
 
-pub mod broker;
-
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use thiserror::Error;
+use uuid::Uuid;
+
+pub mod broker;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ServiceError {
@@ -48,20 +50,32 @@ pub struct ServiceClient {
 }
 
 impl ServiceClient {
-    pub async fn request<T: Serialize + std::fmt::Debug>(
+    pub async fn request<T: Serialize>(
         &self,
         params: &T,
         url: &str,
     ) -> Result<String, ServiceError> {
-        println!("service client url + params = {:?} -- {:#?}", url, params);
-        Ok(self
+        let request_id = Uuid::new_v4();
+
+        trace!("({}) :: Request -> {}", request_id, url);
+        let now = Instant::now();
+
+        let response = self
             .inner
             .post(url)
             .json(params)
             .send()
             .await?
             .text()
-            .await?)
+            .await?;
+
+        trace!(
+            "({}) :: Response took {}us",
+            request_id,
+            now.elapsed().as_micros()
+        );
+
+        Ok(response)
     }
 }
 

@@ -1,11 +1,9 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
-use syn::{
-    parse_macro_input, FnArg, ItemFn, Pat, PatType, PathArguments, ReturnType, Type, TypePath,
-};
+use syn::{parse_macro_input, FnArg, ItemFn, Pat, PatType, ReturnType, Type, TypePath};
 
 #[derive(Debug, Clone)]
 enum ArgType {
@@ -98,14 +96,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
                 if return_type.ident != "Result" {
                     panic!("Action function must return a Result<T>");
                 }
-
-                match return_type.arguments {
-                    PathArguments::AngleBracketed(ty) => {
-                        let inner = ty.args.first().unwrap().clone();
-                        quote! { #inner }
-                    }
-                    _ => panic!("Return value for action must be a Result<T>"),
-                }
+                quote! { #return_type }
             }
             _ => panic!("Must have a return type"),
         }
@@ -161,7 +152,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     let fn_idents = fn_args
         .iter()
         .filter_map(|arg| match arg.1.clone() {
-            ArgType::Owned(ty) => {
+            ArgType::Owned(_) => {
                 let fn_ident = format_ident!("{}", arg.0);
                 let struct_ident = format_ident!("_{}", arg.0);
                 Some(quote! { #struct_ident: #fn_ident })
@@ -189,7 +180,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
             let response = #service_client_var_name.request(&params, &endpoint.address).await?;
             let response: #return_type = serde_json::from_str(&response)?;
-            Ok(response)
+            response
         }
     };
 
@@ -200,7 +191,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         let fn_args = fn_args
             .iter()
             .filter_map(|arg| match arg.1.clone() {
-                ArgType::Owned(ty) => {
+                ArgType::Owned(_) => {
                     let struct_ident = format_ident!("_{}", arg.0);
                     Some(quote! { params.#struct_ident })
                 }
@@ -211,8 +202,9 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
             #[macro_use]
             extern crate log;
             use dotenv::dotenv;
-            use libsvc::{broker, ServiceClient, ServiceError};
+            use libsvc::{broker, ServiceClient};
             use rand::Rng;
+            use std::net::SocketAddr;
             use serde::{Deserialize, Serialize};
             use std::convert::Infallible;
             use warp::Filter;
@@ -232,11 +224,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
             async fn process_request(params: _Params, state: State) -> Result<impl warp::Reply, Infallible> {
                 let client = state.client.clone();
-                debug!("params: {:#?}", params);
-                let result = #server_fn_name(#(#fn_args),* , &client)
-                    .await.unwrap();
-                debug!("action taken!");
-                debug!("responding with {:#?}", result);
+                let result = #server_fn_name(#(#fn_args),* , &client).await;
                 Ok(warp::reply::json(&result))
             }
 
@@ -252,18 +240,14 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
                 env_logger::init();
 
-                info!("b00ting!");
-
                 let mut rng = rand::thread_rng();
-                let port: u16 = rng.gen_range(30000, 50000);
 
-                let service_client = ServiceClient::default();
-
-                broker::add_endpoint(#fn_name_as_str, &format!("http://127.0.0.1:{}/", port), &service_client).await?;
-
+                let svc_client = ServiceClient::default();
                 let state = State {
-                    client: service_client,
+                    client: svc_client,
                 };
+                let svc_client = state.client.clone();
+                let host = "127.0.0.1";
 
                 let route = warp::any()
                     .and(warp::post())
@@ -271,7 +255,29 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
                     .and(with_state(state))
                     .and_then(process_request);
 
-                warp::serve(route).run(([127, 0, 0, 1], port)).await;
+                loop {
+                    let port: u16 = rng.gen_range(30000, 50000);
+
+                    let bind_addr: SocketAddr = match format!("{}:{}", host, port).parse() {
+                        Ok(addr) => addr,
+                        Err(_) => continue,
+                    };
+
+                    let bound_server = warp::serve(route.clone()).try_bind_ephemeral(bind_addr);
+
+                    match bound_server {
+                        Ok(server) => {
+                            trace!("Bind successful @ {}. Running server...", &bind_addr);
+                            broker::add_endpoint(#fn_name_as_str, &format!("http://{}/", bind_addr), &svc_client).await?;
+                            server.1.await;
+                            break;
+                        }
+                        Err(e) => {
+                            debug!("Failed to bind to {} - {}. Retrying.", &bind_addr, e);
+                            continue;
+                        }
+                    }
+                }
                 Ok(())
             }
         };
@@ -282,21 +288,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         target_file
             .write_all(service_src_str.as_bytes())
             .expect("failed to write content to file");
-        println!("{:?}", service_src_str);
     }
 
     TokenStream::from(client_tokens)
-}
-
-fn read_src_file(src_path: &PathBuf) -> String {
-    let mut src_file =
-        File::open(&src_path).expect(&format!("failed to open source file: {:?}", src_path));
-
-    let mut src_content = String::new();
-
-    src_file
-        .read_to_string(&mut src_content)
-        .expect("failed to read source file to string");
-
-    src_content
 }

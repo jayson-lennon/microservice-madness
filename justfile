@@ -1,3 +1,4 @@
+# set log level to: trace, debug, warn, info
 clean:
     rm fizzbuzz/src/bin/svc-*
 
@@ -5,6 +6,7 @@ build:
     cargo build && cargo build
 
 run-service name:
+    @printf '\n'
     ./target/debug/{{name}}
 
 run-services: build

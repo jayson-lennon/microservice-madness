@@ -14,7 +14,6 @@ struct State {
 }
 
 async fn get_directory(req: Request<State>) -> tide::Result<serde_json::Value> {
-    trace!("get directory");
     let service_map = &req.state().services;
     let mut services = Services(HashMap::new());
     for service in service_map.iter() {
@@ -27,7 +26,6 @@ async fn get_directory(req: Request<State>) -> tide::Result<serde_json::Value> {
         );
     }
     let directory = Ok(serde_json::to_value(services).expect("failed to convert to json value"));
-    trace!("directory = {:#?}", directory);
     directory
 }
 
@@ -36,7 +34,6 @@ async fn find_service(mut req: Request<State>) -> tide::Result<serde_json::Value
         let params: params::GetService = req.body_json().await?;
         params.name
     };
-    trace!("find service: {:#?}", service_name);
     req.state()
         .services
         .get(&service_name)
@@ -65,7 +62,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     app.at("/add").post(|mut req: Request<State>| async move {
         let params: params::AddService = req.body_json().await?;
-        debug!("Adding service: {:#?}", params);
+        debug!("Add service @ {} - {}", params.address, params.name);
         let services = &req.state().services;
         let service = Service {
             name: params.name.to_owned(),
