@@ -137,7 +137,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let service_client_var_name = format_ident!("{}", service_client_var_name);
 
-    let server_function = {
+    let fn_impl = {
         let mut function = function.clone();
         function.sig.ident = format_ident!("{}_impl", fn_name);
         function
@@ -176,7 +176,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     let client_tokens = quote! {
-        #server_function
+        #fn_impl
 
         pub #client_fn_sig {
             #target_struct
@@ -191,7 +191,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     // Write service file
     {
-        let server_fn_name = server_function.clone().sig.ident;
+        let fn_impl_name = fn_impl.clone().sig.ident;
         let fn_args = fn_args
             .iter()
             .filter_map(|arg| match arg.1.clone() {
@@ -213,7 +213,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
             use std::convert::Infallible;
             use warp::Filter;
 
-            use #crate_name::#module_path::#server_fn_name;
+            use #crate_name::#module_path::#fn_impl_name;
 
             #[derive(Clone)]
             pub struct State {
@@ -228,7 +228,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
             async fn process_request(params: _Params, state: State) -> Result<impl warp::Reply, Infallible> {
                 let client = state.client.clone();
-                let result = #server_fn_name(#(#fn_args),* , &client).await;
+                let result = #fn_impl_name(#(#fn_args),* , &client).await;
                 Ok(warp::reply::json(&result))
             }
 
