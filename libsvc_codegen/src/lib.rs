@@ -83,6 +83,11 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
         src_path.as_path().file_stem().unwrap().to_str().unwrap(),
         fn_name
     ));
+    let service_name = format!(
+        "{}-{}",
+        src_path.as_path().file_stem().unwrap().to_str().unwrap(),
+        fn_name
+    );
 
     let return_type = {
         match signature.output {
@@ -175,7 +180,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
 
         pub #client_fn_sig {
             #target_struct
-            let endpoint = libsvc::broker::get_endpoint(#fn_name, #service_client_var_name).await?;
+            let endpoint = libsvc::broker::get_endpoint(#service_name, #service_client_var_name).await?;
             let params = _Params { #(#fn_idents),* };
 
             let response = #service_client_var_name.request(&params, &endpoint.address).await?;
@@ -187,7 +192,6 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
     // Write service file
     {
         let server_fn_name = server_function.clone().sig.ident;
-        let fn_name_as_str = fn_name.to_string();
         let fn_args = fn_args
             .iter()
             .filter_map(|arg| match arg.1.clone() {
@@ -268,7 +272,7 @@ pub fn remote(attr: TokenStream, input: TokenStream) -> TokenStream {
                     match bound_server {
                         Ok(server) => {
                             trace!("Bind successful @ {}. Running server...", &bind_addr);
-                            broker::add_endpoint(#fn_name_as_str, &format!("http://{}/", bind_addr), &svc_client).await?;
+                            broker::add_endpoint(#service_name, &format!("http://{}/", bind_addr), &svc_client).await?;
                             server.1.await;
                             break;
                         }

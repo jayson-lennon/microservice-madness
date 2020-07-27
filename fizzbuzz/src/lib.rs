@@ -6,6 +6,8 @@ use thiserror::Error;
 
 pub mod logger;
 pub mod math;
+pub mod number;
+pub mod util;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum FizzBuzzError {

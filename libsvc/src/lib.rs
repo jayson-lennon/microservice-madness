@@ -1,10 +1,5 @@
-#[macro_use]
-extern crate log;
-
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 use thiserror::Error;
-use uuid::Uuid;
 
 pub mod broker;
 
@@ -55,27 +50,14 @@ impl ServiceClient {
         params: &T,
         url: &str,
     ) -> Result<String, ServiceError> {
-        let request_id = Uuid::new_v4();
-
-        trace!("({}) :: Request -> {}", request_id, url);
-        let now = Instant::now();
-
-        let response = self
+        Ok(self
             .inner
             .post(url)
             .json(params)
             .send()
             .await?
             .text()
-            .await?;
-
-        trace!(
-            "({}) :: Response took {}us",
-            request_id,
-            now.elapsed().as_micros()
-        );
-
-        Ok(response)
+            .await?)
     }
 }
 

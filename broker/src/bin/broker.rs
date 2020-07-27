@@ -62,7 +62,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     app.at("/add").post(|mut req: Request<State>| async move {
         let params: params::AddService = req.body_json().await?;
-        debug!("Add service @ {} - {}", params.address, params.name);
+        info!("Add service @ {} - {}", params.address, params.name);
         let services = &req.state().services;
         let service = Service {
             name: params.name.to_owned(),
