@@ -3,5 +3,6 @@ members = [
     "broker",
     "fizzbuzz",
     "libsvc",
-    "libsvc_codegen"
+    "libsvc_codegen",
+    "server_gen",
 ]
