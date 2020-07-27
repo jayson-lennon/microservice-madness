@@ -1,8 +1,9 @@
 use dotenv::dotenv;
-use fizzbuzz::logger::{debug, info};
+use fizzbuzz::logger::info;
 use fizzbuzz::math;
 use fizzbuzz::number;
 use fizzbuzz::util;
+use futures::future::TryFutureExt;
 use libsvc::ServiceClient;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -13,47 +14,47 @@ async fn main() -> Result<(), BoxError> {
     env_logger::init();
     let svc = ServiceClient::default();
 
-    let lhs = number::get("five".to_owned(), &svc).await?.unwrap();
-    let rhs = number::get("two".to_owned(), &svc).await?.unwrap();
-    {
-        let answer = math::add(lhs, rhs, &svc).await?;
-        log(&format!("{} + {} = {}", lhs, rhs, answer), &svc).await?;
-    }
+    let (lhs, rhs) = {
+        let (lhs, rhs) = tokio::join!(
+            number::get("five".to_owned(), &svc),
+            number::get("two".to_owned(), &svc),
+        );
+        (lhs?.unwrap(), rhs?.unwrap())
+    };
 
-    {
-        let answer = math::sub(lhs, rhs, &svc).await?;
-        log(&format!("{} - {} = {}", lhs, rhs, answer), &svc).await?;
-    }
-
-    {
-        let answer = math::mul(lhs, rhs, &svc).await?;
-        log(&format!("{} * {} = {}", lhs, rhs, answer), &svc).await?;
-    }
-
-    {
-        let lhs = lhs;
-        let rhs = 0;
-        let answer = math::div(lhs, rhs, &svc).await?;
-        log(&format!("{} / {} = {:?}", lhs, rhs, answer), &svc).await?;
-    }
+    let _ = tokio::join!(
+        math::add(lhs, rhs, &svc)
+            .and_then(|answer| log(format!("{} + {} = {}", lhs, rhs, answer), &svc)),
+        math::sub(lhs, rhs, &svc)
+            .and_then(|answer| log(format!("{} - {} = {}", lhs, rhs, answer), &svc)),
+        math::mul(lhs, rhs, &svc)
+            .and_then(|answer| log(format!("{} * {} = {}", lhs, rhs, answer), &svc)),
+        math::div(lhs, rhs, &svc)
+            .and_then(|answer| log(format!("{} / {} = {}", lhs, rhs, answer.unwrap()), &svc)),
+    );
 
     {
         use math::rem;
         use util::i32_eq;
         use util::vec_of_i32;
 
-        let one_hundred_numbers = vec_of_i32(0, 100, &svc).await?;
+        let zero_through_fifteen = vec_of_i32(0, 15, &svc).await?;
 
-        for i in one_hundred_numbers {
-            let div_by_three = rem(i, 3, &svc).await?.unwrap();
-            let div_by_five = rem(i, 5, &svc).await?.unwrap();
+        for i in zero_through_fifteen {
+            let (by_three_remainder, by_five_remainder) =
+                tokio::join!(rem(i, 3, &svc), rem(i, 5, &svc));
 
-            if i32_eq(div_by_three, 0, &svc).await? {
-                log("fizz", &svc).await?;
-            } else if i32_eq(div_by_five, 0, &svc).await? {
-                log("buzz", &svc).await?;
+            let (divisible_by_three, divisible_by_five) = tokio::join!(
+                i32_eq(by_three_remainder?.unwrap(), 0, &svc),
+                i32_eq(by_five_remainder?.unwrap(), 0, &svc)
+            );
+
+            if divisible_by_three? {
+                log("fizz".to_owned(), &svc).await?;
+            } else if divisible_by_five? {
+                log("buzz".to_owned(), &svc).await?;
             } else {
-                log(&format!("{}", i), &svc).await?;
+                log(format!("{}", i), &svc).await?;
             }
         }
     }
@@ -61,6 +62,6 @@ async fn main() -> Result<(), BoxError> {
     Ok(())
 }
 
-async fn log(message: &str, svc: &ServiceClient) -> Result<(), fizzbuzz::FizzBuzzError> {
+async fn log(message: String, svc: &ServiceClient) -> Result<(), fizzbuzz::FizzBuzzError> {
     info(module_path!().to_string(), message.to_owned(), &svc).await
 }
